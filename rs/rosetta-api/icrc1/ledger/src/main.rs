@@ -1,4 +1,4 @@
-use candid::candid_method;
+use candid::{candid_method, Principal};
 use candid::types::number::Nat;
 use ic_canister_log::{declare_log_buffer, export};
 use ic_canisters_http_types::{HttpRequest, HttpResponse, HttpResponseBuilder};
@@ -8,7 +8,7 @@ use ic_icrc1::{
     endpoints::{convert_transfer_error, StandardRecord},
     Operation, Transaction,
 };
-use ic_icrc1_ledger::{Ledger, LedgerArgument};
+use ic_icrc1_ledger::{FeeInfo, Ledger, LedgerArgument};
 use ic_ledger_canister_core::ledger::{
     apply_transaction, archive_blocks, LedgerAccess, LedgerContext, LedgerData,
     TransferError as CoreTransferError,
@@ -287,7 +287,7 @@ async fn execute_transfer(
     let block_idx = Access::with_ledger_mut(|ledger| {
         let now = TimeStamp::from_nanos_since_unix_epoch(ic_cdk::api::time());
         let created_at_time = created_at_time.map(TimeStamp::from_nanos_since_unix_epoch);
-
+        let memo_burn = memo.clone();
         match memo.as_ref() {
             Some(memo) if memo.0.len() > ledger.max_memo_length() as usize => {
                 ic_cdk::trap(&format!(
@@ -373,6 +373,23 @@ async fn execute_transfer(
             )
         };
 
+        let burn_fee = ledger.burn_fee().into();
+        if burn_fee != Tokens::zero(){
+            let to_account = Account {
+                owner: Principal::management_canister(),
+                subaccount: None,
+            };
+            let burn_tx = Transaction::transfer(
+                from_account,
+                to_account,
+                spender,
+                burn_fee,
+                Some(Tokens::zero()),
+                created_at_time,
+                memo_burn,
+            );
+            apply_transaction(ledger, burn_tx, now, Tokens::zero())?;
+        }
         let (block_idx, _) = apply_transaction(ledger, tx, now, effective_fee)?;
         Ok(block_idx)
     })?;
@@ -600,6 +617,36 @@ fn icrc2_allowance(arg: AllowanceArgs) -> Allowance {
             expires_at: allowance.expires_at.map(|t| t.as_nanos_since_unix_epoch()),
         }
     })
+}
+
+#[query]
+#[candid_method(query)]
+fn icrc_plus_cycles() -> u64 {
+    ic_cdk::api::canister_balance()
+}
+
+
+#[query]
+#[candid_method(query)]
+fn icrc_plus_fee_info() -> FeeInfo{
+    let transfer_fee = Access::with_ledger(|ledger| ledger.transfer_fee().into());
+    let burn_fee = Access::with_ledger(|ledger| ledger.burn_fee().into());
+    let decimals = Access::with_ledger(|ledger| ledger.decimals().into());
+    FeeInfo { transfer_fee: transfer_fee, burn_fee: burn_fee, decimals: decimals}
+}
+
+
+
+#[query]
+#[candid_method(query)]
+fn icrc_plus_holders_count() -> u64 {
+    Access::with_ledger(|ledger| ledger.balances().store.len() as u64 )
+}
+
+#[query]
+#[candid_method(query)]
+fn icrc_plus_mint_on() -> bool {
+    Access::with_ledger(|ledger| ledger.mint_on().into())
 }
 
 candid::export_service!();

@@ -60,6 +60,13 @@ impl ArchiveCanisterWasm for Icrc1ArchiveWasm {
     }
 }
 
+#[derive(Deserialize, CandidType, Clone, Debug, PartialEq, Eq)]
+pub struct FeeInfo{
+    pub transfer_fee:Nat,
+    pub burn_fee:Nat,
+    pub decimals:Nat,
+}
+
 /// Like [endpoints::Value], but can be serialized to CBOR.
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub enum StoredValue {
@@ -144,6 +151,9 @@ impl InitArgsBuilder {
             feature_flags: None,
             maximum_number_of_accounts: None,
             accounts_overflow_trim_quantity: None,
+
+            burn_fee: 10_000_u32.into(),
+            mint_on:false
         })
     }
 
@@ -228,6 +238,9 @@ pub struct InitArgs {
     pub feature_flags: Option<FeatureFlags>,
     pub maximum_number_of_accounts: Option<u64>,
     pub accounts_overflow_trim_quantity: Option<u64>,
+
+    pub burn_fee: Nat,
+    pub mint_on:bool
 }
 
 #[derive(Deserialize, CandidType, Clone, Debug, PartialEq, Eq)]
@@ -255,6 +268,10 @@ pub struct UpgradeArgs {
     pub token_symbol: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub transfer_fee: Option<Nat>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub burn_fee: Option<Nat>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mint_on: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub change_fee_collector: Option<ChangeFeeCollector>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -288,6 +305,8 @@ pub struct Ledger<Tokens: TokensType> {
     transactions_by_hash: BTreeMap<HashOf<Transaction<Tokens>>, BlockIndex>,
     transactions_by_height: VecDeque<TransactionInfo<Transaction<Tokens>>>,
     transfer_fee: Tokens,
+    burn_fee: Tokens,
+    mint_on:bool,
 
     token_symbol: String,
     token_name: String,
@@ -357,6 +376,9 @@ impl<Tokens: TokensType> Ledger<Tokens> {
             feature_flags,
             maximum_number_of_accounts,
             accounts_overflow_trim_quantity,
+
+            burn_fee,
+            mint_on,
         }: InitArgs,
         now: TimeStamp,
     ) -> Self {
@@ -380,6 +402,13 @@ impl<Tokens: TokensType> Ledger<Tokens> {
                     transfer_fee, e
                 )
             }),
+            burn_fee: Tokens::try_from(burn_fee.clone()).unwrap_or_else(|e| {
+                panic!(
+                    "failed to convert burn fee {} to tokens: {}",
+                    burn_fee, e
+                )
+            }),
+            mint_on:false,
             token_symbol,
             token_name,
             decimals: decimals.unwrap_or_else(default_decimals),
@@ -535,6 +564,14 @@ impl<Tokens: TokensType> Ledger<Tokens> {
         self.transfer_fee.clone()
     }
 
+    pub fn burn_fee(&self) -> Tokens {
+        self.burn_fee.clone()
+    }
+
+    pub fn mint_on(&self) -> bool {
+        self.mint_on.clone()
+    }
+
     pub fn max_memo_length(&self) -> u16 {
         self.max_memo_length
     }
@@ -577,6 +614,17 @@ impl<Tokens: TokensType> Ledger<Tokens> {
         }
         if let Some(token_symbol) = args.token_symbol {
             self.token_symbol = token_symbol;
+        }
+        if let Some(burn_fee) = args.burn_fee {
+            self.burn_fee = Tokens::try_from(burn_fee.clone()).unwrap_or_else(|e| {
+                ic_cdk::trap(&format!(
+                    "failed to convert burn fee {} to tokens: {}",
+                    burn_fee, e
+                ))
+            });
+        }
+        if let Some(mint_on) = args.mint_on {
+            self.mint_on = mint_on;
         }
         if let Some(transfer_fee) = args.transfer_fee {
             self.transfer_fee = Tokens::try_from(transfer_fee.clone()).unwrap_or_else(|e| {
