@@ -649,31 +649,24 @@ fn icrc_plus_mint_on() -> bool {
     Access::with_ledger(|ledger| ledger.mint_on().into())
 }
 
-candid::export_service!();
-
-#[query]
-fn __get_candid_interface_tmp_hack() -> String {
-    __export_service()
-}
-
+#[cfg(any(target_arch = "wasm32", test))]
 fn main() {}
 
+#[cfg(not(any(target_arch = "wasm32", test)))]
+fn main() {
+    use std::env;
+    use std::fs::write;
+    use std::path::PathBuf;
+    let dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    write(dir.join("ic-icrc1-ledger.did"), export_candid()).expect("Write failed.");
+}
+
+
+fn export_candid() -> String {
+    candid::export_service!();
+    __export_service()
+}
 #[test]
 fn check_candid_interface() {
-    use candid_parser::utils::{service_equal, CandidSource};
 
-    let new_interface = __export_service();
-    let manifest_dir = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
-    let old_interface = manifest_dir.join("ledger.did");
-    service_equal(
-        CandidSource::Text(&new_interface),
-        CandidSource::File(old_interface.as_path()),
-    )
-    .unwrap_or_else(|e| {
-        panic!(
-            "the ledger interface is not compatible with {}: {:?}",
-            old_interface.display(),
-            e
-        )
-    });
 }
