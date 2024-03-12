@@ -3,6 +3,7 @@ use candid::types::number::Nat;
 use ic_canister_log::{declare_log_buffer, export};
 use ic_canisters_http_types::{HttpRequest, HttpResponse, HttpResponseBuilder};
 use ic_cdk::api::stable::{StableReader, StableWriter};
+use ic_cdk::print;
 use ic_cdk_macros::{init, post_upgrade, pre_upgrade, query, update};
 use ic_icrc1::{
     endpoints::{convert_transfer_error, StandardRecord},
@@ -16,7 +17,7 @@ use ic_ledger_canister_core::ledger::{
 use ic_ledger_core::tokens::Zero;
 use ic_ledger_core::{approvals::Approvals, timestamp::TimeStamp};
 use icrc_ledger_types::icrc1::transfer::Memo;
-use icrc_ledger_types::icrc2::approve::{ApproveArgs, ApproveError};
+use icrc_ledger_types::icrc2::approve::{ApproveArgs, ApproveError,ApproveError::GenericError};
 use icrc_ledger_types::icrc3::blocks::DataCertificate;
 use icrc_ledger_types::{
     icrc::generic_metadata_value::MetadataValue as Value,
@@ -36,14 +37,12 @@ use icrc_ledger_types::{
 };
 use num_traits::{bounds::Bounded, ToPrimitive};
 use serde_bytes::ByteBuf;
+use std::borrow::BorrowMut;
 use std::cell::RefCell;
 
 const MAX_MESSAGE_SIZE: u64 = 1024 * 1024;
 
-#[cfg(not(feature = "u256-tokens"))]
-type Tokens = ic_icrc1_tokens_u64::U64;
 
-#[cfg(feature = "u256-tokens")]
 type Tokens = ic_icrc1_tokens_u256::U256;
 
 thread_local! {
@@ -373,22 +372,24 @@ async fn execute_transfer(
             )
         };
 
-        let burn_fee = ledger.burn_fee().into();
-        if burn_fee != Tokens::zero(){
-            let to_account = Account {
-                owner: Principal::management_canister(),
-                subaccount: None,
-            };
-            let burn_tx = Transaction::transfer(
-                from_account,
-                to_account,
-                spender,
-                burn_fee,
-                Some(Tokens::zero()),
-                created_at_time,
-                memo_burn,
-            );
-            apply_transaction(ledger, burn_tx, now, Tokens::zero())?;
+        if  &from_account != ledger.minting_account() && &to != ledger.minting_account(){
+            let burn_fee = ledger.burn_fee().into();
+            if burn_fee != Tokens::zero(){
+                let to_account = Account {
+                    owner: Principal::management_canister(),
+                    subaccount: None,
+                };
+                let burn_tx = Transaction::transfer(
+                    from_account,
+                    to_account,
+                    spender,
+                    burn_fee,
+                    Some(Tokens::zero()),
+                    created_at_time,
+                    memo_burn,
+                );
+                apply_transaction(ledger, burn_tx, now, Tokens::zero())?;
+            }
         }
         let (block_idx, _) = apply_transaction(ledger, tx, now, effective_fee)?;
         Ok(block_idx)
@@ -604,6 +605,20 @@ async fn icrc2_approve(arg: ApproveArgs) -> Result<Nat, ApproveError> {
     Ok(Nat::from(block_idx))
 }
 
+#[update]
+#[candid_method(update)]
+async fn icrc_plus_set_minting_account(arg: Account) -> Result<(), String> {
+    let account=Access::with_ledger(|ledger| *ledger.minting_account());
+    let caller=ic_cdk::api::caller();
+    if &caller == &account.owner {
+        Access::with_ledger_mut(|ledger| {
+            ledger.up_minting_account(arg);
+        });
+        return Ok(());
+    }
+    return Err("caller must minting account!".to_string());
+}
+
 #[query]
 #[candid_method(query)]
 fn icrc2_allowance(arg: AllowanceArgs) -> Allowance {
@@ -621,8 +636,8 @@ fn icrc2_allowance(arg: AllowanceArgs) -> Allowance {
 
 #[query]
 #[candid_method(query)]
-fn icrc_plus_cycles() -> u64 {
-    ic_cdk::api::canister_balance()
+fn icrc_plus_cycles() -> Nat {
+    Nat::from(ic_cdk::api::canister_balance())
 }
 
 
@@ -639,8 +654,8 @@ fn icrc_plus_fee_info() -> FeeInfo{
 
 #[query]
 #[candid_method(query)]
-fn icrc_plus_holders_count() -> u64 {
-    Access::with_ledger(|ledger| ledger.balances().store.len() as u64 )
+fn icrc_plus_holders_count() -> Nat {
+    Nat::from(Access::with_ledger(|ledger| ledger.balances().store.len() ))
 }
 
 #[query]

@@ -602,6 +602,10 @@ impl<Tokens: TokensType> Ledger<Tokens> {
         &self.feature_flags
     }
 
+    pub fn up_minting_account(&mut self,arg:Account){
+        self.minting_account=arg;
+    }
+
     pub fn upgrade(&mut self, sink: impl Sink + Clone, args: UpgradeArgs) {
         if let Some(upgrade_metadata_args) = args.metadata {
             self.metadata = upgrade_metadata_args

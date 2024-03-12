@@ -23,8 +23,7 @@ ic-ledger-hash-of = { path = "../../../../packages/ic-ledger-hash-of" }
 ic-cdk = { workspace = true }
 ic-cdk-macros = { workspace = true }
 ic-icrc1 = { path = ".." }
-ic-icrc1-tokens-u64 = { path = "../tokens_u64" }
-ic-icrc1-tokens-u256 = { path = "../tokens_u256", optional = true }
+ic-icrc1-tokens-u256 = { path = "../tokens_u256" }
 icrc-ledger-client = { path = "../../../../packages/icrc-ledger-client" }
 ic-ledger-canister-core = { path = "../../ledger_canister_core" }
 ic-ledger-core = { path = "../../ledger_core" }
@@ -45,4 +44,3 @@ proptest = "1.0"
 
 [features]
 default = []
-u256-tokens = ["dep:ic-icrc1-tokens-u256"]
