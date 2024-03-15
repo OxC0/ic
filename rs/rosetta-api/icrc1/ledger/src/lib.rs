@@ -153,6 +153,8 @@ impl InitArgsBuilder {
             accounts_overflow_trim_quantity: None,
 
             burn_fee: 10_000_u32.into(),
+            transfer_fee_rate:0u32.into(),
+            burn_fee_rate:0u32.into(),
             mint_on:false
         })
     }
@@ -240,6 +242,8 @@ pub struct InitArgs {
     pub accounts_overflow_trim_quantity: Option<u64>,
 
     pub burn_fee: Nat,
+    pub transfer_fee_rate: Nat,
+    pub burn_fee_rate: Nat,
     pub mint_on:bool
 }
 
@@ -270,6 +274,10 @@ pub struct UpgradeArgs {
     pub transfer_fee: Option<Nat>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub burn_fee: Option<Nat>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transfer_fee_rate: Option<Nat>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub burn_fee_rate: Option<Nat>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mint_on: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -306,6 +314,9 @@ pub struct Ledger<Tokens: TokensType> {
     transactions_by_height: VecDeque<TransactionInfo<Transaction<Tokens>>>,
     transfer_fee: Tokens,
     burn_fee: Tokens,
+    //fee rate，exp:1_200_000_000，then fee rate is div 100_000_000 12%
+    burn_fee_rate:Tokens,
+    transfer_fee_rate:Tokens,
     mint_on:bool,
 
     token_symbol: String,
@@ -378,6 +389,8 @@ impl<Tokens: TokensType> Ledger<Tokens> {
             accounts_overflow_trim_quantity,
 
             burn_fee,
+            transfer_fee_rate,
+            burn_fee_rate,
             mint_on,
         }: InitArgs,
         now: TimeStamp,
@@ -406,6 +419,18 @@ impl<Tokens: TokensType> Ledger<Tokens> {
                 panic!(
                     "failed to convert burn fee {} to tokens: {}",
                     burn_fee, e
+                )
+            }),
+            transfer_fee_rate: Tokens::try_from(transfer_fee_rate.clone()).unwrap_or_else(|e| {
+                panic!(
+                    "failed to convert transfer fee rate {} to tokens: {}",
+                    transfer_fee_rate, e
+                )
+            }),
+            burn_fee_rate: Tokens::try_from(burn_fee_rate.clone()).unwrap_or_else(|e| {
+                panic!(
+                    "failed to convert burn fee rate {} to tokens: {}",
+                    burn_fee_rate, e
                 )
             }),
             mint_on:false,
@@ -568,6 +593,14 @@ impl<Tokens: TokensType> Ledger<Tokens> {
         self.burn_fee.clone()
     }
 
+    pub fn transfer_fee_rate(&self) -> Tokens {
+        self.transfer_fee_rate.clone()
+    }
+
+    pub fn burn_fee_rate(&self) -> Tokens {
+        self.burn_fee_rate.clone()
+    }
+
     pub fn mint_on(&self) -> bool {
         self.mint_on.clone()
     }
@@ -591,6 +624,9 @@ impl<Tokens: TokensType> Ledger<Tokens> {
         records.push(Value::entry("icrc1:name", self.token_name()));
         records.push(Value::entry("icrc1:symbol", self.token_symbol()));
         records.push(Value::entry("icrc1:fee", self.transfer_fee().into()));
+        records.push(Value::entry("icrc1:burn_fee", self.burn_fee().into()));
+        records.push(Value::entry("icrc1:transfer_fee_rate", self.transfer_fee().into()));
+        records.push(Value::entry("icrc1:burn_fee_rate", self.transfer_fee().into()));
         records.push(Value::entry(
             "icrc1:max_memo_length",
             self.max_memo_length() as u64,
@@ -624,6 +660,22 @@ impl<Tokens: TokensType> Ledger<Tokens> {
                 ic_cdk::trap(&format!(
                     "failed to convert burn fee {} to tokens: {}",
                     burn_fee, e
+                ))
+            });
+        }
+        if let Some(transfer_fee_rate) = args.transfer_fee_rate {
+            self.transfer_fee_rate = Tokens::try_from(transfer_fee_rate.clone()).unwrap_or_else(|e| {
+                ic_cdk::trap(&format!(
+                    "failed to convert transfer fee rate {} to tokens: {}",
+                    transfer_fee_rate, e
+                ))
+            });
+        }
+        if let Some(burn_fee_rate) = args.burn_fee_rate {
+            self.burn_fee_rate = Tokens::try_from(burn_fee_rate.clone()).unwrap_or_else(|e| {
+                ic_cdk::trap(&format!(
+                    "failed to convert burn fee rate {} to tokens: {}",
+                    burn_fee_rate, e
                 ))
             });
         }

@@ -39,6 +39,7 @@ use num_traits::{bounds::Bounded, ToPrimitive};
 use serde_bytes::ByteBuf;
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
+use std::ops::Div;
 
 const MAX_MESSAGE_SIZE: u64 = 1024 * 1024;
 
@@ -352,11 +353,15 @@ async fn execute_transfer(
                 Tokens::zero(),
             )
         } else {
-            let expected_fee_tokens = ledger.transfer_fee();
+            let mut expected_fee_tokens = ledger.transfer_fee();
             if fee.is_some() && fee.as_ref() != Some(&expected_fee_tokens.into()) {
                 return Err(CoreTransferError::BadFee {
                     expected_fee: expected_fee_tokens,
                 });
+            }
+            if ledger.transfer_fee_rate() > Tokens::zero() {
+                //transfer fee rate prefer
+                expected_fee_tokens = Tokens::try_from(Nat::from(amount) * Nat::from(ledger.transfer_fee_rate()).div(Nat::from(100_000_000u32))).unwrap_or_else(|_| panic!("bas transfer fee Rate:{}",ledger.transfer_fee_rate()));
             }
             (
                 Transaction::transfer(
@@ -373,7 +378,10 @@ async fn execute_transfer(
         };
 
         if  &from_account != ledger.minting_account() && &to != ledger.minting_account(){
-            let burn_fee = ledger.burn_fee().into();
+            let mut burn_fee = ledger.burn_fee().into();
+            if ledger.burn_fee_rate() > Tokens::zero() {
+                burn_fee = Tokens::try_from(Nat::from(amount) * Nat::from(ledger.burn_fee_rate()).div(Nat::from(100_000_000u32))).unwrap_or_else(|_| panic!("Bas burn fee rate:{}",ledger.burn_fee_rate()));
+            }
             if burn_fee != Tokens::zero(){
                 let to_account = Account {
                     owner: Principal::management_canister(),
