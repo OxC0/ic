@@ -361,7 +361,7 @@ async fn execute_transfer(
             }
             if ledger.transfer_fee_rate() > Tokens::zero() {
                 //transfer fee rate prefer
-                expected_fee_tokens = Tokens::try_from(Nat::from(amount) * Nat::from(ledger.transfer_fee_rate()).div(Nat::from(100_000_000u32))).unwrap_or_else(|_| panic!("bas transfer fee Rate:{}",ledger.transfer_fee_rate()));
+                expected_fee_tokens = Tokens::try_from(Nat::from(amount) * Nat::from(ledger.transfer_fee_rate()).div(Nat::from(10_000u32))).unwrap_or_else(|_| panic!("bas transfer fee Rate:{}",ledger.transfer_fee_rate()));
             }
             (
                 Transaction::transfer(
@@ -380,7 +380,7 @@ async fn execute_transfer(
         if  &from_account != ledger.minting_account() && &to != ledger.minting_account(){
             let mut burn_fee = ledger.burn_fee().into();
             if ledger.burn_fee_rate() > Tokens::zero() {
-                burn_fee = Tokens::try_from(Nat::from(amount) * Nat::from(ledger.burn_fee_rate()).div(Nat::from(100_000_000u32))).unwrap_or_else(|_| panic!("Bas burn fee rate:{}",ledger.burn_fee_rate()));
+                burn_fee = Tokens::try_from(Nat::from(amount) * Nat::from(ledger.burn_fee_rate()).div(Nat::from(10_000u32))).unwrap_or_else(|_| panic!("Bas burn fee rate:{}",ledger.burn_fee_rate()));
             }
             if burn_fee != Tokens::zero(){
                 let to_account = Account {
