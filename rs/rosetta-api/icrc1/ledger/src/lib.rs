@@ -314,7 +314,7 @@ pub struct Ledger<Tokens: TokensType> {
     transactions_by_height: VecDeque<TransactionInfo<Transaction<Tokens>>>,
     transfer_fee: Tokens,
     burn_fee: Tokens,
-    //fee rate，exp:1_200_000_000，then fee rate is div 100_000_000 12%
+    //fee rate，exp:120_000，then fee rate is div 10_000 12%
     burn_fee_rate:Tokens,
     transfer_fee_rate:Tokens,
     mint_on:bool,
