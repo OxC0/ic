@@ -625,8 +625,8 @@ impl<Tokens: TokensType> Ledger<Tokens> {
         records.push(Value::entry("icrc1:symbol", self.token_symbol()));
         records.push(Value::entry("icrc1:fee", self.transfer_fee().into()));
         records.push(Value::entry("icrc1:burn_fee", self.burn_fee().into()));
-        records.push(Value::entry("icrc1:transfer_fee_rate", self.transfer_fee().into()));
-        records.push(Value::entry("icrc1:burn_fee_rate", self.transfer_fee().into()));
+        records.push(Value::entry("icrc1:transfer_fee_rate", self.transfer_fee_rate().into()));
+        records.push(Value::entry("icrc1:burn_fee_rate", self.burn_fee_rate().into()));
         records.push(Value::entry(
             "icrc1:max_memo_length",
             self.max_memo_length() as u64,
