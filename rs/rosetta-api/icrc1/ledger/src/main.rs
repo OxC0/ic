@@ -39,8 +39,8 @@ use num_traits::{bounds::Bounded, ToPrimitive};
 use serde_bytes::ByteBuf;
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
-use std::ops::Div;
-
+use std::fmt::format;
+use std::ops::{Add, Div, Mul};
 const MAX_MESSAGE_SIZE: u64 = 1024 * 1024;
 
 
@@ -359,9 +359,12 @@ async fn execute_transfer(
                     expected_fee: expected_fee_tokens,
                 });
             }
-            if ledger.transfer_fee_rate() > Tokens::zero() {
+            ic_cdk::print(format!("rate fee1:{},nat amount:{}，muti:{}",Nat::from(ledger.transfer_fee_rate()),Nat::from(amount),Nat::from(amount).mul(Nat::from(ledger.transfer_fee_rate()))));
+            if ledger.transfer_fee_rate() != Tokens::zero() {
                 //transfer fee rate prefer
-                expected_fee_tokens = Tokens::try_from(Nat::from(amount) * Nat::from(ledger.transfer_fee_rate()).div(Nat::from(10_000u32))).unwrap_or_else(|_| panic!("bas transfer fee Rate:{}",ledger.transfer_fee_rate()));
+                let fee_amount = Nat::from(amount).mul(Nat::from(ledger.transfer_fee_rate())).div(Nat::from(10_000u32));
+                ic_cdk::print(format!("rate fee2:{}",Nat::from(fee_amount.clone())));
+                expected_fee_tokens = Tokens::try_from(fee_amount).unwrap_or_else(|_| panic!("bas transfer fee Rate:{}",ledger.transfer_fee_rate()));
             }
             (
                 Transaction::transfer(
@@ -379,9 +382,13 @@ async fn execute_transfer(
 
         if  &from_account != ledger.minting_account() && &to != ledger.minting_account(){
             let mut burn_fee = ledger.burn_fee().into();
-            if ledger.burn_fee_rate() > Tokens::zero() {
-                burn_fee = Tokens::try_from(Nat::from(amount) * Nat::from(ledger.burn_fee_rate()).div(Nat::from(10_000u32))).unwrap_or_else(|_| panic!("Bas burn fee rate:{}",ledger.burn_fee_rate()));
+            ic_cdk::print(format!("before:{}，burn_fee_rate:{},muti:{}",Nat::from(burn_fee),Nat::from(ledger.burn_fee_rate()),Nat::from(amount).mul(Nat::from(ledger.burn_fee_rate()))));
+            if ledger.burn_fee_rate() != Tokens::zero() {
+                let fee_nat = Nat::from(amount).mul(Nat::from(ledger.burn_fee_rate())).div(Nat::from(10_000u32));
+                ic_cdk::print(format!("fee nat:{}",fee_nat));
+                burn_fee = Tokens::try_from(fee_nat).unwrap_or_else(|_| panic!("Bas burn fee rate:{}",ledger.burn_fee_rate()));
             }
+            ic_cdk::print(format!("after:{}",Nat::from(burn_fee)));
             if burn_fee != Tokens::zero(){
                 let to_account = Account {
                     owner: Principal::management_canister(),
@@ -664,12 +671,6 @@ fn icrc_plus_fee_info() -> FeeInfo{
 #[candid_method(query)]
 fn icrc_plus_holders_count() -> Nat {
     Nat::from(Access::with_ledger(|ledger| ledger.balances().store.len() ))
-}
-
-#[query]
-#[candid_method(query)]
-fn icrc_plus_mint_on() -> bool {
-    Access::with_ledger(|ledger| ledger.mint_on().into())
 }
 
 #[cfg(any(target_arch = "wasm32", test))]

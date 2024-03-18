@@ -155,7 +155,6 @@ impl InitArgsBuilder {
             burn_fee: 10_000_u32.into(),
             transfer_fee_rate:0u32.into(),
             burn_fee_rate:0u32.into(),
-            mint_on:false
         })
     }
 
@@ -244,7 +243,6 @@ pub struct InitArgs {
     pub burn_fee: Nat,
     pub transfer_fee_rate: Nat,
     pub burn_fee_rate: Nat,
-    pub mint_on:bool
 }
 
 #[derive(Deserialize, CandidType, Clone, Debug, PartialEq, Eq)]
@@ -278,8 +276,6 @@ pub struct UpgradeArgs {
     pub transfer_fee_rate: Option<Nat>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub burn_fee_rate: Option<Nat>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mint_on: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub change_fee_collector: Option<ChangeFeeCollector>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -317,8 +313,6 @@ pub struct Ledger<Tokens: TokensType> {
     //fee rate，exp:120_000，then fee rate is div 10_000 12%
     burn_fee_rate:Tokens,
     transfer_fee_rate:Tokens,
-    mint_on:bool,
-
     token_symbol: String,
     token_name: String,
     metadata: Vec<(String, StoredValue)>,
@@ -391,7 +385,6 @@ impl<Tokens: TokensType> Ledger<Tokens> {
             burn_fee,
             transfer_fee_rate,
             burn_fee_rate,
-            mint_on,
         }: InitArgs,
         now: TimeStamp,
     ) -> Self {
@@ -433,7 +426,6 @@ impl<Tokens: TokensType> Ledger<Tokens> {
                     burn_fee_rate, e
                 )
             }),
-            mint_on:false,
             token_symbol,
             token_name,
             decimals: decimals.unwrap_or_else(default_decimals),
@@ -601,10 +593,6 @@ impl<Tokens: TokensType> Ledger<Tokens> {
         self.burn_fee_rate.clone()
     }
 
-    pub fn mint_on(&self) -> bool {
-        self.mint_on.clone()
-    }
-
     pub fn max_memo_length(&self) -> u16 {
         self.max_memo_length
     }
@@ -678,9 +666,6 @@ impl<Tokens: TokensType> Ledger<Tokens> {
                     burn_fee_rate, e
                 ))
             });
-        }
-        if let Some(mint_on) = args.mint_on {
-            self.mint_on = mint_on;
         }
         if let Some(transfer_fee) = args.transfer_fee {
             self.transfer_fee = Tokens::try_from(transfer_fee.clone()).unwrap_or_else(|e| {
