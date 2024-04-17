@@ -1,4 +1,4 @@
-use candid::{candid_method, Principal};
+use candid::{candid_method, CandidType, Principal};
 use candid::types::number::Nat;
 use ic_canister_log::{declare_log_buffer, export};
 use ic_canisters_http_types::{HttpRequest, HttpResponse, HttpResponseBuilder};
@@ -10,10 +10,12 @@ use ic_icrc1::{
     Operation, Transaction,
 };
 use ic_icrc1_ledger::{FeeInfo, Ledger, LedgerArgument};
+use ic_icrc1_tokens_u256::U256;
 use ic_ledger_canister_core::ledger::{
     apply_transaction, archive_blocks, LedgerAccess, LedgerContext, LedgerData,
     TransferError as CoreTransferError,
 };
+use ic_ledger_core::balances::{self, Balances};
 use ic_ledger_core::tokens::Zero;
 use ic_ledger_core::{approvals::Approvals, timestamp::TimeStamp};
 use icrc_ledger_types::icrc1::transfer::Memo;
@@ -39,6 +41,7 @@ use num_traits::{bounds::Bounded, ToPrimitive};
 use serde_bytes::ByteBuf;
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
+use std::collections::{BTreeMap, LinkedList};
 use std::fmt::format;
 use std::ops::{Add, Div, Mul};
 const MAX_MESSAGE_SIZE: u64 = 1024 * 1024;
@@ -632,6 +635,48 @@ async fn icrc_plus_set_minting_account(arg: Account) -> Result<(), String> {
         return Ok(());
     }
     return Err("caller must minting account!".to_string());
+}
+
+#[derive(Clone, Debug,CandidType)]
+struct HoldersBalances {
+    max_length: Nat,
+    balances: LinkedList<(Account, Nat)>,
+}
+
+#[query]
+#[candid_method(query)]
+fn icrc_plus_holders_balance(start: usize, limit: usize) -> HoldersBalances {
+    Access::with_ledger(|ledger| {
+        let now = TimeStamp::from_nanos_since_unix_epoch(ic_cdk::api::time());
+
+        // Get balances_store from ledger
+        let balances_store = ledger.balances().store.clone();
+
+        // Count total number of non-zero balances
+        let total_count: usize = balances_store.iter().count();
+
+        // Convert start and limit to usize
+        let start_index: usize = start;
+        let limit_index: usize = limit;
+
+        // Calculate max_length
+        let max_length: Nat = (total_count as u64).into();
+
+        // Filter, map, and collect with pagination
+        let paginated_balances = balances_store
+            .iter()
+            .enumerate()
+            .filter(|(index, (_, value))| {
+                // Check if index is within the pagination range
+                *index >= start_index && *index < start_index + limit_index
+            })
+            .map(|(_, (account, value))| (account.clone(), value.clone().into()))
+            .collect();
+        HoldersBalances {
+            max_length,
+            balances: paginated_balances,
+        }
+    })
 }
 
 #[query]
