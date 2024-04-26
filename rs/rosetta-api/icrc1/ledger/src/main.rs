@@ -16,7 +16,7 @@ use ic_ledger_canister_core::ledger::{
     TransferError as CoreTransferError,
 };
 use ic_ledger_core::balances::{self, Balances};
-use ic_ledger_core::tokens::Zero;
+use ic_ledger_core::tokens::{CheckedAdd, Zero};
 use ic_ledger_core::{approvals::Approvals, timestamp::TimeStamp};
 use icrc_ledger_types::icrc1::transfer::Memo;
 use icrc_ledger_types::icrc2::approve::{ApproveArgs, ApproveError,ApproveError::GenericError};
@@ -406,6 +406,14 @@ async fn execute_transfer(
                     created_at_time,
                     memo_burn,
                 );
+                let total_amount =Nat::from(effective_fee)+Nat::from(burn_fee)+Nat::from(amount);
+                let balance = Nat::from(ledger.balances().account_balance(&from_account));
+                if total_amount > balance {
+                    let balance_tokens = ledger.balances().account_balance(&from_account);
+                    return Err(CoreTransferError::InsufficientFunds {
+                        balance: balance_tokens,
+                    })
+                };
                 apply_transaction(ledger, burn_tx, now, Tokens::zero())?;
             }
         }
